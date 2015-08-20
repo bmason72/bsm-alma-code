@@ -1,0 +1,27 @@
+
+wed 19aug2015
+
+mostly from Dodelson, "Modern Cosmology" - pp.366, 372..
+
+*fisher MX is defd as
+
+ F_ab = < - d^2 lnL / dp_a dp_b >
+
+*for gaussian distributed data this is
+
+ F_ab = 0.5 * d^2 chi^2/dp_a dp_b
+
+writing out the 2nd derivative results in a second term (11.123)
+that can be dropped, giving (11.125)
+
+F_ab = sum_i (dC_i/dp_a) (dC_i/dp_b) * (1/sigma_i)^2
+
+where the C_i are the observables with uncertainties sigma_i.
+
+the second term is proportional to
+(C_i,true - C_i,obs)
+which disappears in the ensemble average. See discussion at end of
+sec 15.5 (NR 2nd ed.).
+
+ -=-=-=-=-
+
