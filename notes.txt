@@ -25,3 +25,12 @@ sec 15.5 (NR 2nd ed.).
 
  -=-=-=-=-
 
+Tues 25aug2015
+
+progress today:
+1) numpy arrays are pointers! your derivatives may not be zero if you know that.
+2) remove extra factor from analytical expression visibility (to get integrals of 1-norm'd fcns)
+3) missing sqrt(8ln2) put in
+4) increase frac step size for numerical derivs to 1%
+5) set vis err to be of order vis val in fish mx calc
+6) work out a couple of analytic test cases - analytic code passes the test.

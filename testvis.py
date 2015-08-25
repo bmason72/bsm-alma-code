@@ -38,12 +38,13 @@ def vis_igrnd(l,m,beamfwhm,is_imaginary,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle)
             sp.sin(0.0174533*axis_angle)
     new_m = (m-m0) * sp.cos(0.0174533*axis_angle) - (l-l0) * \
             sp.sin(0.0174533*axis_angle)
-    modelfactor = sp.exp( -0.5 * (new_l*2.3548/fwhm_1)**2 + \
-                          (new_m*2.3548/fwhm_2)**2)
+    modelfactor = sp.exp( -0.5 * ((new_l*2.3548/fwhm_1)**2 + \
+                          (new_m*2.3548/fwhm_2)**2))
     if is_imaginary:
         trigfactor = sp.sin(-2.0*sp.pi*(u*l + v*m))
     else:
         trigfactor = sp.cos(-2.0*sp.pi*(u*l + v*m))
+    #print new_l,new_m,beamfactor,modelfactor,trigfactor
     return beamfactor * norm * modelfactor * trigfactor
         
 # BSM - TBF - dblquad() only supports real values. need to integrate real and im. separately.
@@ -56,13 +57,13 @@ def visval(beamfwhm,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle,brute_force=True):
     brute_force=True - a not very clever, brute force calculation
     brute_force=False - use the analytic form
     '''
-    lm_lim= 2.0 * beamfwhm
+    lm_lim= 5.0 * beamfwhm
     ret_val = sp.zeros(1,dtype=complex)
     if brute_force:
-        real_part = spi.dblquad(vis_igrnd,-1.0*lm_lim,lm_lim,lambda x: -1.0*lm_lim,lambda x:lm_lim, \
-                                args=(beamfwhm,False,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle))
-        imag_part = spi.dblquad(vis_igrnd,-1.0*lm_lim,lm_lim,lambda x: -1.0*lm_lim,lambda x:lm_lim, \
-                                args=(beamfwhm,True,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle))
+        real_part = spi.dblquad(vis_igrnd,-1.0*lm_lim,lm_lim,lambda l: -1.0*lm_lim,lambda l:lm_lim, \
+                                args=(beamfwhm,False,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle),epsrel=1e-4)
+        imag_part = spi.dblquad(vis_igrnd,-1.0*lm_lim,lm_lim,lambda l: -1.0*lm_lim,lambda l:lm_lim, \
+                                args=(beamfwhm,True,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle),epsrel=1e-4)
         ret_val = real_part[0] + sp.sqrt(-1.0)*imag_part[0]
     else:
         # uv in vector form-
@@ -77,18 +78,18 @@ def visval(beamfwhm,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle,brute_force=True):
         sig_a = beam_mx(fwhm_1/2.3548,fwhm_2/2.3548,axis_angle*0.0174533)
         sig_a_inv=spla.inv(sig_a)
         # matrix describing beam shape-
-        sig_b = beam_mx(beamfwhm/2.3548,beamfwhm,0.0)
+        sig_b = beam_mx(beamfwhm/2.3548,beamfwhm/2.3548,0.0)
         sig_b_inv=spla.inv(sig_b)
         # combined quantities-
         sig_c_inv=sig_a_inv+sig_b_inv
         sig_c=spla.inv(sig_c_inv)
         sig_ab_inv=spla.inv(sig_a+sig_b)
         mc = sig_c.dot(sig_a_inv.dot(x_vec))
-        pre_factor = 2.0*sp.pi* (spla.det(sig_c)* spla.det(sig_a) * spla.det(sig_b) / spla.det(sig_a+sig_b))**0.5 * \
+        pre_factor = 2.0*sp.pi* (spla.det(sig_c))**0.5 * \
                      sp.exp(-0.5*sp.transpose(x_vec).dot(sig_ab_inv.dot(x_vec))) * \
                      sp.exp(-4.0* sp.pi**2 * sp.transpose(u_vec).dot(sig_c.dot(u_vec)))
-        real_part = pre_factor * sp.cos( -2.0*sp.pi* sp.transpose(mc).dot(u_vec))
-        imag_part = pre_factor * sp.sin( -2.0*sp.pi* sp.transpose(mc).dot(u_vec))
+        real_part = norm*pre_factor * sp.cos( -2.0*sp.pi* sp.transpose(mc).dot(u_vec))
+        imag_part = norm*pre_factor * sp.sin( -2.0*sp.pi* sp.transpose(mc).dot(u_vec))
         ret_val = real_part + sp.sqrt(-1.0)*imag_part
     return ret_val
 
@@ -126,20 +127,25 @@ def make_fisher_mx(bl,vis_err,deriv_frac_stepsize,beamfwhm,param_vec,brute_force
     nparam=param_vec.size
     # for single Gaussian = 6 free params...
     #nparam=6
-    fish_mx=sp.zeros((nparam,nparam))
+    fish_mx=sp.zeros((nparam,nparam),dtype=sp.float128)
     for i in range(nparam):
-        v1plus=param_vec
-        v1minus=param_vec
+        v1plus=sp.copy(param_vec)
+        v1minus=sp.copy(param_vec)
         v1plus[i]=param_vec[i]*(1.0+deriv_frac_stepsize)
         v1minus[i]=param_vec[i]*(1.0-deriv_frac_stepsize)        
         delta_1 = param_vec[i]*2.0*deriv_frac_stepsize
+        #print v1plus-v1minus
+        #print delta_1
         for j in range(i,nparam):
-            v2plus=param_vec
-            v2minus=param_vec
+            v2plus=sp.copy(param_vec)
+            v2minus=sp.copy(param_vec)
             v2plus[j]=param_vec[j]*(1.0+deriv_frac_stepsize)
             v2minus[j]=param_vec[j]*(1.0-deriv_frac_stepsize)
             delta_2= param_vec[j]*2.0*deriv_frac_stepsize
+            #print v2plus-v2minus
+            #print delta_2
             this_sum = 0.0
+            print i,j
             for k in range(nb):
                 u=(bl['u'])[k]
                 v=(bl['v'])[k]
@@ -149,7 +155,7 @@ def make_fisher_mx(bl,vis_err,deriv_frac_stepsize,beamfwhm,param_vec,brute_force
                                visval(beamfwhm,u,v,v2minus[0],v2minus[1],v2minus[2],v2minus[3],v2minus[4],v2minus[5],brute_force))/delta_2
                 this_sum += sp.real(first_term) * sp.real(second_term)
                 this_sum += sp.imag(first_term) * sp.imag(second_term)
-                print i,j,k,u,v,first_term,second_term
+                #print "   ",k,u,v,first_term,second_term,delta_1,delta_2
             fish_mx[i,j]=this_sum/ vis_err**2
             fish_mx[j,i]=fish_mx[i,j]
             # looks like the second_term is giving some NaNs in the off-diagonals...
