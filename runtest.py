@@ -12,5 +12,8 @@ bl=tv.getbaselines('Alma_cycle1_2.cfg.txt',lam=lam)
 beamfwhm=2.91e-4
 parvec=sp.array([0.01,0.0,0.0,2e-5,2e-5,0.0])
 
-f=tv.make_fisher_mx(bl,1e-4,1e-4,beamfwhm,parvec)
+parvec += 1e-7
+
+f=tv.make_fisher_mx(bl,1e-4,1e-4,beamfwhm,parvec,brute_force=False)
+
 
