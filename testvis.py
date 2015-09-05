@@ -47,18 +47,28 @@ def vis_igrnd(l,m,beamfwhm,is_imaginary,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle)
     #print new_l,new_m,beamfactor,modelfactor,trigfactor
     return beamfactor * norm * modelfactor * trigfactor
         
-# BSM - TBF - dblquad() only supports real values. need to integrate real and im. separately.
-#  use FFT and/or break up integral into re and im parts, then return via numpy COMPLEX type...
-# implicitly assumes the telescope primary beam is the phase center (ell,m)=(0,0).
-def visval(beamfwhm,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle,brute_force=True):
+# BSM - 28aug2015 - parameter "integ_flux" is the integrated flux of the gaussian component, nominally
+#  in mJy, if flux_norm=True (*not* the default); it is the peak value of the component in SB if flux_norm=False
+#  (which *is* the default)
+def visval(beamfwhm,u,v,integ_flux,l0,m0,fwhm_1,fwhm_2,axis_angle,brute_force=True,flux_norm=False):
     '''
     computation of complex visibility for a single (u,v).
     two methods of calculating it are available:
     brute_force=True - a not very clever, brute force calculation
     brute_force=False - use the analytic form
+    INPUTS:
+     beamfwhm - radians
+     u,v - inverse radians
+     integ_flux - mJy, nominally
+     l0,m0 - etc
     '''
     lm_lim= 5.0 * beamfwhm
     ret_val = sp.zeros(1,dtype=complex)
+    # derive the gaussian normalization from the integrated flux
+    if flux_norm:
+        norm = integ_flux * 2.3548**2 / (fwhm_1 * fwhm_2 * 2.0 * sp.pi)
+    else:
+        norm = integ_flux
     if brute_force:
         real_part = spi.dblquad(vis_igrnd,-1.0*lm_lim,lm_lim,lambda l: -1.0*lm_lim,lambda l:lm_lim, \
                                 args=(beamfwhm,False,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle),epsrel=1e-4)
@@ -117,11 +127,10 @@ def getbaselines(infile_name,lam=1.0):
             #u[ii+1]= -1.0*u[ii]
             #v[ii+1]= -1.0*v[ii]
             ii += 1
-    bl={'u':u,'v':v}
+    bl={'u':u,'v':v,'q':(u**2+v**2)**0.5}
     return bl
 
-# good defaults are 1e-4 for both vis_err [Jy?] and frac_stepsize 
-def make_fisher_mx(bl,vis_err,deriv_frac_stepsize,beamfwhm,param_vec,brute_force=True):
+def make_fisher_mx(bl,vis_err,deriv_stepsize,beamfwhm,param_vec,brute_force=True,flux_norm=True):
     # param_vec = [norm,l0,m0,fwhm_1,fwhm_2,axis_angle,beamfwhm]
     nb=(bl['u']).size
     nparam=param_vec.size
@@ -131,28 +140,28 @@ def make_fisher_mx(bl,vis_err,deriv_frac_stepsize,beamfwhm,param_vec,brute_force
     for i in range(nparam):
         v1plus=sp.copy(param_vec)
         v1minus=sp.copy(param_vec)
-        v1plus[i]=param_vec[i]*(1.0+deriv_frac_stepsize)
-        v1minus[i]=param_vec[i]*(1.0-deriv_frac_stepsize)        
-        delta_1 = param_vec[i]*2.0*deriv_frac_stepsize
+        v1plus[i] += deriv_stepsize[i]
+        v1minus[i] -= deriv_stepsize[i]
+        delta_1 = 2.0*deriv_stepsize[i]
         #print v1plus-v1minus
         #print delta_1
         for j in range(i,nparam):
             v2plus=sp.copy(param_vec)
             v2minus=sp.copy(param_vec)
-            v2plus[j]=param_vec[j]*(1.0+deriv_frac_stepsize)
-            v2minus[j]=param_vec[j]*(1.0-deriv_frac_stepsize)
-            delta_2= param_vec[j]*2.0*deriv_frac_stepsize
+            v2plus[j] += deriv_stepsize[j]
+            v2minus[j] -= deriv_stepsize[j]
+            delta_2= 2.0*deriv_stepsize[j]
             #print v2plus-v2minus
             #print delta_2
             this_sum = 0.0
-            print i,j
+            #print i,j
             for k in range(nb):
                 u=(bl['u'])[k]
                 v=(bl['v'])[k]
-                first_term = (visval(beamfwhm,u,v,v1plus[0],v1plus[1],v1plus[2],v1plus[3],v1plus[4],v1plus[5],brute_force) -
-                              visval(beamfwhm,u,v,v1minus[0],v1minus[1],v1minus[2],v1minus[3],v1minus[4],v1minus[5],brute_force))/delta_1
-                second_term = (visval(beamfwhm,u,v,v2plus[0],v2plus[1],v2plus[2],v2plus[3],v2plus[4],v2plus[5],brute_force) -
-                               visval(beamfwhm,u,v,v2minus[0],v2minus[1],v2minus[2],v2minus[3],v2minus[4],v2minus[5],brute_force))/delta_2
+                first_term = (visval(beamfwhm,u,v,v1plus[0],v1plus[1],v1plus[2],v1plus[3],v1plus[4],v1plus[5],brute_force,flux_norm) -
+                              visval(beamfwhm,u,v,v1minus[0],v1minus[1],v1minus[2],v1minus[3],v1minus[4],v1minus[5],brute_force,flux_norm))/delta_1
+                second_term = (visval(beamfwhm,u,v,v2plus[0],v2plus[1],v2plus[2],v2plus[3],v2plus[4],v2plus[5],brute_force,flux_norm) -
+                               visval(beamfwhm,u,v,v2minus[0],v2minus[1],v2minus[2],v2minus[3],v2minus[4],v2minus[5],brute_force,flux_norm))/delta_2
                 this_sum += sp.real(first_term) * sp.real(second_term)
                 this_sum += sp.imag(first_term) * sp.imag(second_term)
                 #print "   ",k,u,v,first_term,second_term,delta_1,delta_2

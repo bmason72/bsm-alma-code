@@ -9,7 +9,7 @@ lam=3e8/(nu*1e9)
 # this will return the uv baselines in inverse radians-
 bl=tv.getbaselines('Alma_cycle1_2.cfg.txt',lam=lam)
 
-# beam fwhm in rad- (B3 alma)
+# beam fwhm in rad- (B3 alma) - 1' fwhm = 2.91e-4 radians fwhm
 beamfwhm=2.91e-4
 parvec=sp.array([0.01,0.0,0.0,2e-5,2e-5,0.0])
 # param order is - norm,l0,m0,fwhm_1,fwhm_2,axis_angle
