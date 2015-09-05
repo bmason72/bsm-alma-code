@@ -1,13 +1,30 @@
 
+#
+# BSM Aug/Sep 2015
+#
+# multiprocess interferometer fisher matrix (LAS) calculator
+#  example usage - 
+# import multirunGood_fishers as mrgf
+# mrgf.run_all_fishers(do_constSurfBright=False,mytag='hello')
+# 
+# edit run_all_fishers code to set up array configuration files etc.
+#  code will use n_processes = # config files
+#
+# can be helpful to run on virtual terminal (eg , screen) to reconnect to later
+#
+
 import scipy.linalg as spla
 import scipy as sp
 import time
 import testvis as tv
 import multiprocessing
+import pickle
 
 def calc_one_fisher(this_info):
     '''
     routine called by worker bee function to do all the heavy lifting.
+     calculates many fisher matrices for a given array configuration
+     (one fishMx for each angular scale to be assessed)
     '''
     lam=this_info[0]
     cfg_file=this_info[1]
@@ -19,6 +36,7 @@ def calc_one_fisher(this_info):
     typical_err=this_info[7]
     n_samps=this_info[8]
     do_constSurfBright=this_info[9]
+    mytag=this_info[10]
 
     if do_constSurfBright:
         print "SURFACE BRIGHTNESS of components held fixed"
@@ -35,6 +53,7 @@ def calc_one_fisher(this_info):
     pos_err0=sp.zeros(n_samps)
     pos_err1=sp.zeros(n_samps)
     angle_err=sp.zeros(n_samps)
+    nzeros=sp.zeros(n_samps)
     # go from resolution/5 to LAS*2
     #min_scale=cfg_resolution*0.1
     min_scale=min_resolution*0.05
@@ -46,6 +65,10 @@ def calc_one_fisher(this_info):
     bl=tv.getbaselines(cfg_file,lam=lam)
     # loop over gaussian component sizes-
     print '***',step_size,max_scale,min_scale,cfg_file
+    if do_constSurfBright:
+        mystring='-constSB_2'
+    else:
+        mystring='-constFlux_2'
     for i in range(n_samps):
         parvec[3] = signal_fwhm[i] * 1.05
         parvec[4] = signal_fwhm[i] / 1.05
@@ -75,20 +98,22 @@ def calc_one_fisher(this_info):
 	fwhm_snr[i]= parvec[3] / (finv[3,3])**0.5
         fwhm2_snr[i] = parvec[4]/ (finv[4,4])**0.5
         angle_err[i]= (finv[5,5])**0.5
+        diags = sp.diag(finv)
+        nzeros[i]=diags[diags==0.0].size
+        dumpfile='raw_fish/f-'+cfg_file+'-'+mytag+mystring+'{}'.format(i)+'.pkl'
+        pickle.dump(f,open(dumpfile,"wb"))
+        dumpfile='raw_fish/finv-'+cfg_file+'-'+mytag+mystring+'{}'.format(i)+'.pkl'
+        pickle.dump(finv,open(dumpfile,"wb"))
         print cfg_file,i, norm_snr[i],fwhm_snr[i],pos_err0[i]
         # save fisher mx i here
     # save (signal_fwhm,norm_snr, fwhm_snr) here
-    if do_constSurfBright:
-        mystring='-constSB_2'
-    else:
-        mystring='-constFlux_2'
     fh=open(cfg_file+mystring+'.parErrs.txt','w')
     for i in range(n_samps):
-        outstr='{0:.3e} {1:.3e} {2:.3e} {3:.4e} {3:.4e} {4:.3e} {4:.3e} {4:.3e}'.format(signal_fwhm[i],beamfwhm,norm_snr[i],fwhm_snr[i],fwhm2_snr[i],angle_err[i],pos_err0[i],pos_err1[i])
+        outstr='{i} {0:.3e} {1:.3e} {2:.3e} {3:.4e} {3:.4e} {4:.3e} {4:.3e} {4:.3e} {i}'.format(i,signal_fwhm[i],beamfwhm,norm_snr[i],fwhm_snr[i],fwhm2_snr[i],angle_err[i],pos_err0[i],pos_err1[i],nzeros[i])
         fh.write(outstr+'\n')
     fh.close()
 
-def run_all_fishers(do_constSurfBright=False):
+def run_all_fishers(do_constSurfBright=False,mytag=''):
     '''
     call this to do it all.
     '''
@@ -103,9 +128,10 @@ def run_all_fishers(do_constSurfBright=False):
     # ALMA B3 numbers
     nu=100.0
     lam=3e8/(nu*1e9)
-    cfg_files = ['../alma.C36-1n.cfg','../alma.C36-2n.cfg', \
-             '../alma.C36-3n.cfg','../alma.C36-4n.cfg','../alma.C36-5n.cfg', \
-             '../alma.C36-6n.cfg','../alma.C36-7n.cfg','../alma.C36-8n.cfg','../aca.std10.cfg']
+    # ***NOTE: the cfg_file strings cannot have any relative paths like ../ in them :)
+    cfg_files = ['alma.C36-1n.cfg','alma.C36-2n.cfg', \
+             'alma.C36-3n.cfg','alma.C36-4n.cfg','alma.C36-5n.cfg', \
+             'alma.C36-6n.cfg','alma.C36-7n.cfg','alma.C36-8n.cfg','aca.std10.cfg']
     # resolution and LAS in arcsec from C3 THB - convert to radians - aca is 15", 42.8"
     cfg_resolution=sp.array([3.4,1.8,1.2,0.7,0.5,0.3,0.1,0.08,15.0])*3.1415/180.0/3600.0
     min_resolution = min(cfg_resolution)
@@ -126,7 +152,7 @@ def run_all_fishers(do_constSurfBright=False):
     # start threads - they will wait for data to appear on the queue
     for ii in range(nthreads):
         my_data = [lam,cfg_files[ii],cfg_resolution[ii],min_resolution,cfg_las[ii],beamfwhm[ii],master_norm,
-                   typical_err,n_samps,do_constSurfBright]
+                   typical_err,n_samps,do_constSurfBright,mytag]
         # um this is crazy - but (inqueue) doesnt work; (inqueue,) does - to make a 1-tuple...
         calcOneFile = multiprocessing.Process(target=calc_one_fisher,args=(my_data,))
         # sleep is a mystery-
