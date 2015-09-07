@@ -53,7 +53,7 @@ def calc_one_fisher(this_info):
     pos_err0=sp.zeros(n_samps)
     pos_err1=sp.zeros(n_samps)
     angle_err=sp.zeros(n_samps)
-    nzeros=sp.zeros(n_samps)
+    nzeros=sp.zeros(n_samps,dtype=sp.int_)
     # go from resolution/5 to LAS*2
     #min_scale=cfg_resolution*0.1
     min_scale=min_resolution*0.05
@@ -69,6 +69,8 @@ def calc_one_fisher(this_info):
         mystring='-constSB_2'
     else:
         mystring='-constFlux_2'
+    # save (signal_fwhm,norm_snr, fwhm_snr) here
+    fh=open(cfg_file+mystring+'.parErrs.txt','w')
     for i in range(n_samps):
         parvec[3] = signal_fwhm[i] * 1.05
         parvec[4] = signal_fwhm[i] / 1.05
@@ -104,13 +106,9 @@ def calc_one_fisher(this_info):
         pickle.dump(f,open(dumpfile,"wb"))
         dumpfile='raw_fish/finv-'+cfg_file+'-'+mytag+mystring+'{}'.format(i)+'.pkl'
         pickle.dump(finv,open(dumpfile,"wb"))
-        print cfg_file,i, norm_snr[i],fwhm_snr[i],pos_err0[i]
-        # save fisher mx i here
-    # save (signal_fwhm,norm_snr, fwhm_snr) here
-    fh=open(cfg_file+mystring+'.parErrs.txt','w')
-    for i in range(n_samps):
-        outstr='{i} {0:.3e} {1:.3e} {2:.3e} {3:.4e} {3:.4e} {4:.3e} {4:.3e} {4:.3e} {i}'.format(i,signal_fwhm[i],beamfwhm,norm_snr[i],fwhm_snr[i],fwhm2_snr[i],angle_err[i],pos_err0[i],pos_err1[i],nzeros[i])
-        fh.write(outstr+'\n')
+        outstr='{0:d} {1:.5e} {2:.5e} {3:.5e} {4:.5e} {5:.5e} {6:.5e} {7:.5e} {8:.5e} {9:d}'.format(i,signal_fwhm[i],beamfwhm,norm_snr[i],fwhm_snr[i],fwhm2_snr[i],angle_err[i],pos_err0[i],pos_err1[i],nzeros[i])
+        fh.write(outstr+'\n')        
+        print cfg_file,outstr
     fh.close()
 
 def run_all_fishers(do_constSurfBright=False,mytag=''):
@@ -129,15 +127,16 @@ def run_all_fishers(do_constSurfBright=False,mytag=''):
     nu=100.0
     lam=3e8/(nu*1e9)
     # ***NOTE: the cfg_file strings cannot have any relative paths like ../ in them :)
-    cfg_files = ['alma.C36-1n.cfg','alma.C36-2n.cfg', \
-             'alma.C36-3n.cfg','alma.C36-4n.cfg','alma.C36-5n.cfg', \
-             'alma.C36-6n.cfg','alma.C36-7n.cfg','alma.C36-8n.cfg','aca.std10.cfg']
+
+    cfg_files = ['c40-1n.cfg','c40-2n.cfg', \
+                 'c40-3n.cfg','c40-4n.cfg','c40-5n.cfg', \
+                 'c40-6n.cfg','c40-7n2.cfg','c40-8n2.cfg','c40-9n2.cfg']
     # resolution and LAS in arcsec from C3 THB - convert to radians - aca is 15", 42.8"
-    cfg_resolution=sp.array([3.4,1.8,1.2,0.7,0.5,0.3,0.1,0.08,15.0])*3.1415/180.0/3600.0
+    cfg_resolution=sp.array([3.4,1.8,1.2,0.7,0.5,0.3,0.1,0.08,0.04])*3.1415/180.0/3600.0
     min_resolution = min(cfg_resolution)
-    cfg_las = sp.array([25.0,25.0,25.0,10.0,8.0,5.0,1.5,1.1,42.8])*3.1415/180.0/3600.0
-    # beam fwhm in rad- (B3 alma) - 1' fwhm = 2.91e-4 radians fwhm 
-    beamfwhm= sp.array([2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4,4.99e-4])*(100.0/nu)
+    cfg_las = sp.array([25.0,25.0,25.0,10.0,8.0,5.0,1.5,1.1,0.5])*3.1415/180.0/3600.0
+    # beam fwhm in rad- (B3 alma) - 1' fwhm = 2.91e-4 radians fwhm  or 4.99e-4 for aca
+    beamfwhm= sp.array([2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4,2.91e-4])*(100.0/nu)
     # in mJy-
     master_norm=1.0
     # if doing SB case, this will be the flux at 1" fwhm...
