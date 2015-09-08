@@ -20,6 +20,7 @@ import testvis as tv
 import multiprocessing
 import pickle
 
+
 def calc_one_fisher(this_info):
     '''
     routine called by worker bee function to do all the heavy lifting.
@@ -43,8 +44,7 @@ def calc_one_fisher(this_info):
     else:
         print "TOTAL FLUX density of components held fixed"
 
-    deltax=beamfwhm * 0.01
-    parvec=sp.array([master_norm,deltax,deltax,cfg_resolution,cfg_resolution,10.0])
+    parvec=sp.array([master_norm,cfg_resolution,cfg_resolution,cfg_resolution,cfg_resolution,25.0*sp.pi/180.0])
     # param order is - norm,l0,m0,fwhm_1,fwhm_2,axis_angle - last is deg others rad.
     # initialize variables
     norm_snr=sp.zeros(n_samps)
@@ -69,8 +69,10 @@ def calc_one_fisher(this_info):
         mystring='-constSB_2'
     else:
         mystring='-constFlux_2'
+    test_delta = tv.create_delta_vec(parvec,parvec)
+    print " *** Representative deltas: {}".format(test_delta)
     # save (signal_fwhm,norm_snr, fwhm_snr) here
-    fh=open(cfg_file+mystring+'.parErrs.txt','w')
+    fh=open(cfg_file+mytag+mystring+'.parErrs.txt','w')
     for i in range(n_samps):
         parvec[3] = signal_fwhm[i] * 1.05
         parvec[4] = signal_fwhm[i] / 1.05
@@ -79,19 +81,14 @@ def calc_one_fisher(this_info):
             #  of a component with 1" FWHM - note signal_fwhm here
             #  is in radians
             parvec[0] = master_norm * (signal_fwhm[i] * 206264.8)**2 
-        # set default deltas for calculating the numerical derivative
-        #  default to 1% for nonzero params; 0.1xsynth beam for positions;
-        #  and 0.5 deg for the axis angle-
-        default_par_delta=sp.copy(parvec*0.01)
-        default_par_delta[1]=cfg_resolution*0.1
-        default_par_delta[2]=cfg_resolution*0.1
-        default_par_delta[5]=0.5
+        default_scales = sp.array([parvec[0],cfg_resolution,cfg_resolution,cfg_resolution,cfg_resolution,0.35])
+        default_par_delta = tv.create_delta_vec(parvec,default_scales)
         # put telescope gain scaling in to the errors (which are in mJy)-
         this_err = typical_err * (beamfwhm/2.91e-4)**2 
-	f=tv.make_fisher_mx(bl,this_err,default_par_delta,beamfwhm,parvec,brute_force=False,flux_norm=True)
+        f=tv.make_fisher_mx(bl,this_err,default_par_delta,beamfwhm,parvec,brute_force=False,flux_norm=True)
         # use SVD pseudo inverse instead of direct
         #  inverse for stability
-	#finv=spla.inv(f)
+        #finv=spla.inv(f)
         finv=spla.pinv(f)
 	norm_snr[i]= parvec[0] / (finv[0,0])**0.5
         # save position error = average 1D error-
@@ -158,4 +155,3 @@ def run_all_fishers(do_constSurfBright=False,mytag=''):
         time.sleep(0.2)
         jobs.append(calcOneFile)
         calcOneFile.start()
-    

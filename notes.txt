@@ -64,4 +64,8 @@ source FWHM/PB FWHM (x) vs Norm/Sigma(norm) on y - constant flux density
 source FWHM/PB FWHM (x) vs inferredFWHM/Sigma(inferredFWHM) on y - constant surface brightness
 source FWHM/PB FWHM (x) vs inferredFWHM/Sigma(inferredFWHM) on y - constant flux density
 
+-=-=-=-=-
 
+changes
+* deg->rad for axis_angle
+* optimized step size computation for numerical derivative using NR 5.7, center difference (5.7.8)

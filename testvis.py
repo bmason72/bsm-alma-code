@@ -3,6 +3,44 @@ import scipy as sp
 import scipy.integrate as spi
 import scipy.linalg as spla
 
+def do_nothing_with(blah):
+    """
+    this is a dummy function that exists to prevent
+    the machine resolution trick from being optimized out
+    (though may be irrelevant with python)
+    """
+    return 0
+
+#
+# if choosing the step size carefully doesn't work, maybe try the Richardson extrap
+#  formulae for central differences
+#  http://numdifftools.readthedocs.org/en/latest/src/numerical/derivest.html#numerical-differentiation-of-a-general-function-of-one-variable
+#     f' ~ 2*f'(h/2) - f'(h) (1st order)
+#  or f' ~ f'(h)/3 - 2*f'(h/2) + 8*f'(h/4)/3 (2nd order)
+#  choice of step size could be an issue again though the claim is they can be biggish.
+#  or f' ~ (-f(x+2h) + 8f(x+h) -8 f(x-h) +f(x-2h))/12h [wikipedia on numerical differentiation]
+#   -> this latter simply uses finite differences to approximate the higher derivatives, vs extrapolating to zero difference
+# Could actually combine these...
+#
+def create_delta_vec(parvec,scales):
+    ''' Make parameter delta vector suitable for numerical differentiation
+        (NR 5.7 -- equation 5.7.8 -- optimal delta choice for centered differentiation)
+    input: parameter vector (copied)
+       default scale vector - used where parameter==0 -- obviously no scales[i] should be zero!!
+    '''
+    deltavec=sp.copy(parvec)
+    # where equal to zero, set to scales -
+    deltavec[parvec == 0.] = scales[parvec==0.]
+    npars=deltavec.size
+    machine_resolution = (sp.finfo(deltavec.dtype)).resolution
+    # trickery to get exactly machine representable delta:
+    for i in range(npars):
+        h = (machine_resolution)**(1.0/3.0) * deltavec[i]
+        temp = deltavec[i] + h
+        do_nothing_with(temp)
+        deltavec[i] = temp - deltavec[i]
+    return deltavec
+
 def rot_mx(phi):
     '''
     2d rotation matrix, phi is in radians
@@ -30,14 +68,14 @@ def vis_igrnd(l,m,beamfwhm,is_imaginary,u,v,norm,l0,m0,fwhm_1,fwhm_2,axis_angle)
     4: norm
     5,6: l0,m0 (center of source) [units of ell,emm]
     7,8: axis1,axis2 of source [same units as ell,emm]
-    9: axis_angle [deg.]
+    9: axis_angle [now in RADIANS]
     10: primary beam fwhm [same units as ell,emm]
     '''
     beamfactor  = sp.exp( -0.5* (l**2+m**2) / (beamfwhm/2.3548)**2)
-    new_l = (l-l0) * sp.cos(0.0174533*axis_angle) + (m-m0) * \
-            sp.sin(0.0174533*axis_angle)
-    new_m = (m-m0) * sp.cos(0.0174533*axis_angle) - (l-l0) * \
-            sp.sin(0.0174533*axis_angle)
+    new_l = (l-l0) * sp.cos(axis_angle) + (m-m0) * \
+            sp.sin(axis_angle)
+    new_m = (m-m0) * sp.cos(axis_angle) - (l-l0) * \
+            sp.sin(axis_angle)
     modelfactor = sp.exp( -0.5 * ((new_l*2.3548/fwhm_1)**2 + \
                           (new_m*2.3548/fwhm_2)**2))
     if is_imaginary:
@@ -85,7 +123,7 @@ def visval(beamfwhm,u,v,integ_flux,l0,m0,fwhm_1,fwhm_2,axis_angle,brute_force=Tr
         x_vec[0]=l0
         x_vec[1]=m0
         # matrix describing signal shape-
-        sig_a = beam_mx(fwhm_1/2.3548,fwhm_2/2.3548,axis_angle*0.0174533)
+        sig_a = beam_mx(fwhm_1/2.3548,fwhm_2/2.3548,axis_angle)
         sig_a_inv=spla.inv(sig_a)
         # matrix describing beam shape-
         sig_b = beam_mx(beamfwhm/2.3548,beamfwhm/2.3548,0.0)
