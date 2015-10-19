@@ -72,7 +72,7 @@ def calc_one_fisher(this_info):
     test_delta = tv.create_delta_vec(parvec,parvec)
     print " *** Representative deltas: {}".format(test_delta)
     # save (signal_fwhm,norm_snr, fwhm_snr) here
-    fh=open(cfg_file+mytag+mystring+'.parErrs.txt','w')
+    fh=open(cfg_file+mytag+mystring+'.parErrs.txt','w',1)
     for i in range(n_samps):
         parvec[3] = signal_fwhm[i] * 1.05
         parvec[4] = signal_fwhm[i] / 1.05

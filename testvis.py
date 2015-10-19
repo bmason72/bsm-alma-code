@@ -165,7 +165,16 @@ def getbaselines(infile_name,lam=1.0):
             #u[ii+1]= -1.0*u[ii]
             #v[ii+1]= -1.0*v[ii]
             ii += 1
-    bl={'u':u,'v':v,'q':(u**2+v**2)**0.5}
+    qq=(u**2+v**2)**0.5
+    qq=abs(qq)
+    qq.sort()
+    q05=qq[round(qq.size)*0.05]
+    q10=qq[round(qq.size)*0.10]
+    q15=qq[round(qq.size)*0.15]
+    q80=qq[round(qq.size)*0.8]
+    q85=qq[round(qq.size)*0.85]
+    q90=qq[round(qq.size)*0.9]
+    bl={'u':u,'v':v,'q':(u**2+v**2)**0.5,'qspecial':[qq.min(),q05,q10,q15,q80,q85,q90,qq.max()]}
     return bl
 
 def make_fisher_mx(bl,vis_err,deriv_stepsize,beamfwhm,param_vec,brute_force=True,flux_norm=True):
