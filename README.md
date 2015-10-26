@@ -1,2 +1,2 @@
-# bsm-alma-code
-random ALMA-related utilities
+# fisher-las
+code to calculate sensitivity of an interferometer to resolved source geometry parameters
